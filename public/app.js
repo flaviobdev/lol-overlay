@@ -1,5 +1,6 @@
 /* Cliente do overlay — JS puro. Prefere o WebSocket, com polling REST como fallback.
-   Atualiza os cards no lugar (sem recriar o DOM a cada tick) para não piscar. */
+   Mostra só o campeão do jogador local + placar de objetivos. Atualiza no lugar
+   (sem recriar o DOM a cada tick) para não piscar. */
 (function () {
   "use strict";
 
@@ -24,7 +25,6 @@
     );
   };
 
-  // Rótulos dos modos de jogo em pt-BR (chave = gameMode da API).
   var MODOS = {
     CLASSIC: "Clássico",
     ARAM: "ARAM",
@@ -39,15 +39,18 @@
   };
 
   var statusEl = document.getElementById("status");
-  var statusText = statusEl.querySelector(".status-text");
-  var boardEl = document.getElementById("scoreboard");
+  var hudEl = document.getElementById("hud");
   var clockEl = document.getElementById("clock");
   var modeEl = document.getElementById("mode");
-  var orderEl = document.getElementById("players-order");
-  var chaosEl = document.getElementById("players-chaos");
+  var playerEl = document.getElementById("player");
+  var el = {
+    dragMine: document.getElementById("drag-mine"),
+    dragEnemy: document.getElementById("drag-enemy"),
+    towerMine: document.getElementById("tower-mine"),
+    towerEnemy: document.getElementById("tower-enemy"),
+  };
 
-  // Cache de cards por Riot ID, para atualizar no lugar em vez de recriar.
-  var rows = {};
+  var card = null; // card do jogador local, criado uma única vez
 
   function fmtTime(seconds) {
     var s = Math.max(0, Math.floor(seconds || 0));
@@ -69,7 +72,6 @@
   }
 
   function itemsHtml(items) {
-    // 6 slots de item + berloque; primeiros 7 não-vazios.
     var html = "";
     var count = 0;
     for (var i = 0; i < items.length && count < 7; i++) {
@@ -92,55 +94,53 @@
     return ids.join(",");
   }
 
-  // Cria o card uma única vez, guardando referências aos nós que mudam.
-  function createRow(p) {
-    var el = document.createElement("div");
-    el.className = "player";
-    el.innerHTML =
+  function createCard(p) {
+    var node = document.createElement("div");
+    node.className = "player";
+    node.innerHTML =
       '<div class="portrait">' +
-      '<img src="' +
-      CHAMP_IMG(p.championName) +
-      '" alt="' +
-      esc(p.championName) +
-      '" onerror="this.style.opacity=0.15"/>' +
+      '<img alt="" onerror="this.style.opacity=0.15"/>' +
       '<span class="level"></span>' +
       "</div>" +
       '<div class="info">' +
-      '<div class="line1">' +
-      '<span class="name">' +
-      esc(p.riotId) +
-      "</span>" +
-      '<span class="champ">' +
-      esc(p.championName) +
-      "</span>" +
-      "</div>" +
+      '<div class="line1"><span class="name"></span><span class="champ"></span></div>' +
       '<div class="stats">' +
       '<div class="stat"><b class="kda"></b><span class="k">KDA</span></div>' +
       '<div class="stat"><b class="cs"></b><span class="k cslabel"></span></div>' +
-      '<div class="stat gold" style="display:none"><b class="goldv"></b><span class="k">Ouro</span></div>' +
+      '<div class="stat gold"><b class="goldv"></b><span class="k">Ouro</span></div>' +
       "</div>" +
       "</div>" +
       '<div class="items"></div>';
 
-    el._refs = {
-      level: el.querySelector(".level"),
-      kda: el.querySelector(".kda"),
-      cs: el.querySelector(".cs"),
-      cslabel: el.querySelector(".cslabel"),
-      goldStat: el.querySelector(".stat.gold"),
-      goldv: el.querySelector(".goldv"),
-      items: el.querySelector(".items"),
+    node._refs = {
+      img: node.querySelector(".portrait img"),
+      level: node.querySelector(".level"),
+      name: node.querySelector(".name"),
+      champ: node.querySelector(".champ"),
+      kda: node.querySelector(".kda"),
+      cs: node.querySelector(".cs"),
+      cslabel: node.querySelector(".cslabel"),
+      goldStat: node.querySelector(".stat.gold"),
+      goldv: node.querySelector(".goldv"),
+      items: node.querySelector(".items"),
     };
-    el._itemSig = null;
-    return el;
+    node._champ = null;
+    node._itemSig = null;
+    return node;
   }
 
-  // Atualiza só o que muda — sem recriar nós, então nada pisca.
-  function updateRow(el, p) {
-    var r = el._refs;
+  function updateCard(node, p) {
+    var r = node._refs;
 
-    el.classList.toggle("dead", !!p.isDead);
-    el.classList.toggle("is-local", p.gold != null);
+    node.classList.toggle("dead", !!p.isDead);
+    node.classList.toggle("chaos", p.team === "CHAOS");
+
+    if (node._champ !== p.championName) {
+      r.img.src = CHAMP_IMG(p.championName);
+      setText(r.champ, p.championName);
+      setText(r.name, p.riotId);
+      node._champ = p.championName;
+    }
 
     setText(r.level, p.level);
     r.kda.innerHTML =
@@ -156,9 +156,9 @@
     }
 
     var sig = itemSig(p.items || []);
-    if (sig !== el._itemSig) {
+    if (sig !== node._itemSig) {
       r.items.innerHTML = itemsHtml(p.items || []);
-      el._itemSig = sig;
+      node._itemSig = sig;
     }
   }
 
@@ -170,37 +170,38 @@
   function render(data) {
     if (!data || !data.inGame) {
       statusEl.classList.remove("hidden");
-      boardEl.classList.add("hidden");
-      // zera o cache p/ reconstruir quando voltar à partida
-      orderEl.innerHTML = "";
-      chaosEl.innerHTML = "";
-      rows = {};
+      hudEl.classList.add("hidden");
+      playerEl.innerHTML = "";
+      card = null;
       return;
     }
+
+    var players = data.players || [];
+    var me = players.filter(function (p) {
+      return p.isLocal;
+    })[0] || players[0];
+    if (!me) return;
+
     statusEl.classList.add("hidden");
-    boardEl.classList.remove("hidden");
+    hudEl.classList.remove("hidden");
     setText(clockEl, fmtTime(data.gameTime));
     setText(modeEl, MODOS[data.gameMode] || data.gameMode || "Partida");
 
-    var seen = {};
-    (data.players || []).forEach(function (p) {
-      seen[p.riotId] = true;
-      var el = rows[p.riotId];
-      if (!el) {
-        el = createRow(p);
-        rows[p.riotId] = el;
-        (p.team === "CHAOS" ? chaosEl : orderEl).appendChild(el);
-      }
-      updateRow(el, p);
-    });
+    if (!card) {
+      card = createCard(me);
+      playerEl.appendChild(card);
+    }
+    updateCard(card, me);
 
-    // remove cards de jogadores que sumiram (raro)
-    Object.keys(rows).forEach(function (id) {
-      if (!seen[id]) {
-        rows[id].remove();
-        delete rows[id];
-      }
-    });
+    // objetivos: meu time × inimigo
+    var mine = (data.localTeam || me.team) === "CHAOS" ? "chaos" : "order";
+    var enemy = mine === "order" ? "chaos" : "order";
+    var obj = data.objectives || { order: {}, chaos: {} };
+    hudEl.classList.toggle("me-chaos", mine === "chaos");
+    setText(el.dragMine, obj[mine].dragons || 0);
+    setText(el.dragEnemy, obj[enemy].dragons || 0);
+    setText(el.towerMine, obj[mine].towers || 0);
+    setText(el.towerEnemy, obj[enemy].towers || 0);
   }
 
   // --- transporte: WebSocket primeiro, polling REST como fallback ---

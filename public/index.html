@@ -20,25 +20,25 @@
       <span class="status-text">Procurando fila…</span>
     </div>
 
-    <div id="scoreboard" class="scoreboard hidden">
-      <section class="team team-order" aria-label="Time Azul">
-        <header class="team-head">
-          <span class="team-label">TIME AZUL</span>
-        </header>
-        <div class="players" id="players-order"></div>
-      </section>
-
-      <div class="center">
-        <div class="clock" id="clock">00:00</div>
-        <div class="mode" id="mode">CLÁSSICO</div>
+    <div id="hud" class="hud hidden">
+      <div class="clock-badge"><span id="clock">00:00</span><em id="mode">Clássico</em></div>
+      <div id="player" class="player"></div>
+      <div class="objectives">
+        <div class="obj">
+          <span class="obj-ico">🐉</span>
+          <span class="obj-label">Dragões</span>
+          <span class="obj-score">
+            <b class="mine" id="drag-mine">0</b><i>–</i><b class="enemy" id="drag-enemy">0</b>
+          </span>
+        </div>
+        <div class="obj">
+          <span class="obj-ico">🏰</span>
+          <span class="obj-label">Torres</span>
+          <span class="obj-score">
+            <b class="mine" id="tower-mine">0</b><i>–</i><b class="enemy" id="tower-enemy">0</b>
+          </span>
+        </div>
       </div>
-
-      <section class="team team-chaos" aria-label="Time Vermelho">
-        <header class="team-head">
-          <span class="team-label">TIME VERMELHO</span>
-        </header>
-        <div class="players" id="players-chaos"></div>
-      </section>
     </div>
 
     <script src="/app.js"></script>
