@@ -7,10 +7,12 @@ import {
 import * as https from 'https';
 import { BehaviorSubject } from 'rxjs';
 import {
+  Objectives,
   OverlayPlayer,
   OverlayResult,
   RawAllGameData,
   RawPlayer,
+  Team,
 } from './types';
 
 const LIVE_CLIENT_URL =
@@ -107,6 +109,8 @@ export class GameDataService implements OnModuleInit, OnModuleDestroy {
       gameTime,
       gameMode: raw.gameData?.gameMode ?? 'UNKNOWN',
       players,
+      objectives: this.computeObjectives(raw),
+      localTeam: players.find((p) => p.isLocal)?.team ?? null,
     };
   }
 
@@ -117,6 +121,7 @@ export class GameDataService implements OnModuleInit, OnModuleDestroy {
     activeGold: number | null,
   ): OverlayPlayer {
     const riotId = p.riotId ?? p.summonerName ?? p.championName;
+    const isLocal = !!activeId && riotId === activeId;
     const cs = p.scores?.creepScore ?? 0;
     const minutes = gameTime / 60;
     const csPerMin = minutes > 0 ? Number((cs / minutes).toFixed(1)) : 0;
@@ -133,9 +138,43 @@ export class GameDataService implements OnModuleInit, OnModuleDestroy {
       csPerMin,
       // ponytail: API only exposes gold for the local player; others are null.
       // Upgrade path: none client-side — Riot doesn't broadcast enemy gold.
-      gold: activeId && riotId === activeId ? activeGold : null,
+      gold: isLocal ? activeGold : null,
       items: (p.items ?? []).map((it) => ({ id: it.itemID, slot: it.slot })),
       isDead: p.isDead,
+      isLocal,
     };
+  }
+
+  /**
+   * Dragons/towers per team, tallied from the events log.
+   * - DragonKill: credited to the killer's team.
+   * - TurretKilled: a destroyed "Turret_T1_*" (ORDER's) scores for CHAOS, and
+   *   a "Turret_T2_*" (CHAOS's) scores for ORDER.
+   */
+  private computeObjectives(raw: RawAllGameData): Objectives {
+    const obj: Objectives = {
+      order: { dragons: 0, towers: 0 },
+      chaos: { dragons: 0, towers: 0 },
+    };
+
+    const teamOf = new Map<string, Team>();
+    for (const p of raw.allPlayers ?? []) {
+      if (p.riotId) teamOf.set(p.riotId, p.team);
+      if (p.summonerName) teamOf.set(p.summonerName, p.team);
+    }
+
+    for (const e of raw.events?.Events ?? []) {
+      if (e.EventName === 'DragonKill' && e.KillerName) {
+        const t = teamOf.get(e.KillerName);
+        if (t === 'ORDER') obj.order.dragons++;
+        else if (t === 'CHAOS') obj.chaos.dragons++;
+      } else if (e.EventName === 'TurretKilled') {
+        const s = e.TurretKilled ?? '';
+        if (s.includes('_T1_')) obj.chaos.towers++;
+        else if (s.includes('_T2_')) obj.order.towers++;
+      }
+    }
+
+    return obj;
   }
 }

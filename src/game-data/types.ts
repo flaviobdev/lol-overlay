@@ -39,9 +39,18 @@ export interface RawActivePlayer {
   currentGold?: number;
 }
 
+/** Raw entry from allgamedata -> events.Events[] (we only read a few kinds). */
+export interface RawEvent {
+  EventName: string;
+  KillerName?: string;
+  TurretKilled?: string; // e.g. "Turret_T1_C_05_A" — T1 = ORDER's, T2 = CHAOS's
+  DragonType?: string;
+}
+
 export interface RawAllGameData {
   activePlayer?: RawActivePlayer;
   allPlayers: RawPlayer[];
+  events?: { Events: RawEvent[] };
   gameData: {
     gameTime: number;
     gameMode: string;
@@ -63,6 +72,19 @@ export interface OverlayPlayer {
   gold: number | null;
   items: { id: number; slot: number }[];
   isDead: boolean;
+  /** True for the player running the client (the streamer). */
+  isLocal: boolean;
+}
+
+/** Objective count for one team. */
+export interface TeamObjectives {
+  dragons: number;
+  towers: number;
+}
+
+export interface Objectives {
+  order: TeamObjectives;
+  chaos: TeamObjectives;
 }
 
 export interface OverlayData {
@@ -70,6 +92,9 @@ export interface OverlayData {
   gameTime: number;
   gameMode: string;
   players: OverlayPlayer[];
+  objectives: Objectives;
+  /** Team of the local player (null if not found, e.g. spectating). */
+  localTeam: Team | null;
 }
 
 export interface NotInGame {
