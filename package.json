@@ -1,0 +1,46 @@
+{
+  "name": "lol-overlay",
+  "version": "1.0.0",
+  "description": "Real-time League of Legends match overlay (OBS/Streamlabs Browser Source) powered by the local Live Client Data API.",
+  "author": "",
+  "license": "MIT",
+  "main": "dist/main.js",
+  "bin": "dist/main.js",
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:prod": "node dist/main.js",
+    "build:exe": "npm run build && pkg . --targets node18-win-x64 --output lol-overlay.exe"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.4.0",
+    "@nestjs/core": "^10.4.0",
+    "@nestjs/platform-express": "^10.4.0",
+    "@nestjs/platform-socket.io": "^10.4.0",
+    "@nestjs/serve-static": "^4.0.2",
+    "@nestjs/websockets": "^10.4.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.4.0",
+    "@nestjs/schematics": "^10.1.0",
+    "@types/node": "^20.14.0",
+    "pkg": "^5.8.1",
+    "typescript": "^5.4.5"
+  },
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "assets": [
+      "public/**/*",
+      "node_modules/@nestjs/**/*",
+      "node_modules/socket.io/**/*",
+      "node_modules/engine.io/**/*"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ]
+  }
+}

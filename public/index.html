@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LoL Overlay</title>
+    <link rel="stylesheet" href="/style.css" />
+    <!-- socket.io client is auto-served by the server at this path -->
+    <script src="/socket.io/socket.io.js"></script>
+  </head>
+  <body>
+    <div id="status" class="status">Waiting for game…</div>
+
+    <div id="scoreboard" class="scoreboard hidden">
+      <div class="team-col" id="team-order">
+        <div class="team-header order">ORDER (Blue)</div>
+        <div class="players"></div>
+      </div>
+      <div class="mid">
+        <div class="clock" id="clock">00:00</div>
+        <div class="mode" id="mode"></div>
+      </div>
+      <div class="team-col" id="team-chaos">
+        <div class="team-header chaos">CHAOS (Red)</div>
+        <div class="players"></div>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
