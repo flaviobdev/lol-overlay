@@ -101,31 +101,22 @@ body {
 
 .team-head {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
   padding: 4px 12px;
   font-family: "Rajdhani", sans-serif;
 }
-.team-name {
-  font-weight: 700;
-  font-size: 17px;
-  letter-spacing: 0.22em;
-}
-.team-sub {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
 .team-chaos .team-head {
-  flex-direction: row-reverse;
+  justify-content: flex-end;
 }
-.team-order .team-name {
+.team-label {
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.2em;
+}
+.team-order .team-label {
   color: var(--order);
   text-shadow: 0 0 16px rgba(55, 212, 230, 0.35);
 }
-.team-chaos .team-name {
+.team-chaos .team-label {
   color: var(--chaos);
   text-shadow: 0 0 16px rgba(255, 81, 101, 0.35);
 }

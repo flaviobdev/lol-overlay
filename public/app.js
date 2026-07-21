@@ -1,4 +1,5 @@
-/* Cliente do overlay — JS puro. Prefere o WebSocket, com polling REST como fallback. */
+/* Cliente do overlay — JS puro. Prefere o WebSocket, com polling REST como fallback.
+   Atualiza os cards no lugar (sem recriar o DOM a cada tick) para não piscar. */
 (function () {
   "use strict";
 
@@ -45,6 +46,9 @@
   var orderEl = document.getElementById("players-order");
   var chaosEl = document.getElementById("players-chaos");
 
+  // Cache de cards por Riot ID, para atualizar no lugar em vez de recriar.
+  var rows = {};
+
   function fmtTime(seconds) {
     var s = Math.max(0, Math.floor(seconds || 0));
     var m = Math.floor(s / 60);
@@ -52,7 +56,7 @@
     return (m < 10 ? "0" : "") + m + ":" + (r < 10 ? "0" : "") + r;
   }
 
-  function escapeHtml(s) {
+  function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return {
         "&": "&amp;",
@@ -82,79 +86,120 @@
     return html;
   }
 
-  function playerRow(p) {
+  function itemSig(items) {
+    var ids = [];
+    for (var i = 0; i < items.length; i++) if (items[i].id) ids.push(items[i].id);
+    return ids.join(",");
+  }
+
+  // Cria o card uma única vez, guardando referências aos nós que mudam.
+  function createRow(p) {
     var el = document.createElement("div");
-    var cls = "player";
-    if (p.isDead) cls += " dead";
-    if (p.gold != null) cls += " is-local";
-    el.className = cls;
-
-    // barra de ouro apenas para o jogador local (único exposto pela API)
-    var goldHtml =
-      p.gold != null
-        ? '<div class="stat gold"><b>' +
-          p.gold +
-          '</b><span class="k">Ouro</span></div>'
-        : "";
-
+    el.className = "player";
     el.innerHTML =
       '<div class="portrait">' +
       '<img src="' +
       CHAMP_IMG(p.championName) +
       '" alt="' +
-      escapeHtml(p.championName) +
+      esc(p.championName) +
       '" onerror="this.style.opacity=0.15"/>' +
-      '<span class="level">' +
-      p.level +
-      "</span>" +
+      '<span class="level"></span>' +
       "</div>" +
       '<div class="info">' +
       '<div class="line1">' +
       '<span class="name">' +
-      escapeHtml(p.riotId) +
+      esc(p.riotId) +
       "</span>" +
       '<span class="champ">' +
-      escapeHtml(p.championName) +
+      esc(p.championName) +
       "</span>" +
       "</div>" +
       '<div class="stats">' +
-      '<div class="stat"><b>' +
-      p.kills +
-      '<span class="sep">/</span>' +
-      p.deaths +
-      '<span class="sep">/</span>' +
-      p.assists +
-      '</b><span class="k">KDA</span></div>' +
-      '<div class="stat"><b>' +
-      p.cs +
-      '</b><span class="k">CS · ' +
-      p.csPerMin +
-      "/min</span></div>" +
-      goldHtml +
+      '<div class="stat"><b class="kda"></b><span class="k">KDA</span></div>' +
+      '<div class="stat"><b class="cs"></b><span class="k cslabel"></span></div>' +
+      '<div class="stat gold" style="display:none"><b class="goldv"></b><span class="k">Ouro</span></div>' +
       "</div>" +
       "</div>" +
-      '<div class="items">' +
-      itemsHtml(p.items || []) +
-      "</div>";
+      '<div class="items"></div>';
+
+    el._refs = {
+      level: el.querySelector(".level"),
+      kda: el.querySelector(".kda"),
+      cs: el.querySelector(".cs"),
+      cslabel: el.querySelector(".cslabel"),
+      goldStat: el.querySelector(".stat.gold"),
+      goldv: el.querySelector(".goldv"),
+      items: el.querySelector(".items"),
+    };
+    el._itemSig = null;
     return el;
+  }
+
+  // Atualiza só o que muda — sem recriar nós, então nada pisca.
+  function updateRow(el, p) {
+    var r = el._refs;
+
+    el.classList.toggle("dead", !!p.isDead);
+    el.classList.toggle("is-local", p.gold != null);
+
+    setText(r.level, p.level);
+    r.kda.innerHTML =
+      p.kills + '<span class="sep">/</span>' + p.deaths + '<span class="sep">/</span>' + p.assists;
+    setText(r.cs, p.cs);
+    setText(r.cslabel, "CS · " + p.csPerMin + "/min");
+
+    if (p.gold != null) {
+      r.goldStat.style.display = "";
+      setText(r.goldv, Math.round(p.gold)); // API manda float; arredonda p/ inteiro
+    } else {
+      r.goldStat.style.display = "none";
+    }
+
+    var sig = itemSig(p.items || []);
+    if (sig !== el._itemSig) {
+      r.items.innerHTML = itemsHtml(p.items || []);
+      el._itemSig = sig;
+    }
+  }
+
+  function setText(node, value) {
+    var s = String(value);
+    if (node.textContent !== s) node.textContent = s;
   }
 
   function render(data) {
     if (!data || !data.inGame) {
-      statusText.textContent = "Aguardando partida…";
       statusEl.classList.remove("hidden");
       boardEl.classList.add("hidden");
+      // zera o cache p/ reconstruir quando voltar à partida
+      orderEl.innerHTML = "";
+      chaosEl.innerHTML = "";
+      rows = {};
       return;
     }
     statusEl.classList.add("hidden");
     boardEl.classList.remove("hidden");
-    clockEl.textContent = fmtTime(data.gameTime);
-    modeEl.textContent = MODOS[data.gameMode] || data.gameMode || "Partida";
+    setText(clockEl, fmtTime(data.gameTime));
+    setText(modeEl, MODOS[data.gameMode] || data.gameMode || "Partida");
 
-    orderEl.innerHTML = "";
-    chaosEl.innerHTML = "";
+    var seen = {};
     (data.players || []).forEach(function (p) {
-      (p.team === "CHAOS" ? chaosEl : orderEl).appendChild(playerRow(p));
+      seen[p.riotId] = true;
+      var el = rows[p.riotId];
+      if (!el) {
+        el = createRow(p);
+        rows[p.riotId] = el;
+        (p.team === "CHAOS" ? chaosEl : orderEl).appendChild(el);
+      }
+      updateRow(el, p);
+    });
+
+    // remove cards de jogadores que sumiram (raro)
+    Object.keys(rows).forEach(function (id) {
+      if (!seen[id]) {
+        rows[id].remove();
+        delete rows[id];
+      }
     });
   }
 
