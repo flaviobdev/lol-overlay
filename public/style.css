@@ -289,11 +289,6 @@ body {
   clip-path: var(--shard);
   border: 1px solid var(--hair);
 }
-.obj-ico {
-  font-size: 15px;
-  line-height: 1;
-  filter: saturate(1.1);
-}
 .obj-label {
   font-family: "Rajdhani", sans-serif;
   font-weight: 600;
