@@ -67,7 +67,7 @@ public/                       overlay (index.html, style.css, app.js)
 
 ## Contribuindo
 
-A branch `main` é protegida: **não é permitido dar push direto**. Toda alteração entra por **Pull Request com pelo menos 1 aprovação**.
+A branch `main` é protegida: **não é permitido dar push direto**. Toda alteração entra por **Pull Request** (o dono pode aprovar/mergear o próprio PR).
 
 ```bash
 git checkout -b minha-mudanca
