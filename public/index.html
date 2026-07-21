@@ -1,29 +1,46 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>LoL Overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Rajdhani:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/style.css" />
-    <!-- socket.io client is auto-served by the server at this path -->
+    <!-- cliente socket.io servido automaticamente pelo servidor -->
     <script src="/socket.io/socket.io.js"></script>
   </head>
   <body>
-    <div id="status" class="status">Waiting for game…</div>
+    <div id="status" class="status">
+      <span class="status-dot"></span>
+      <span class="status-text">Aguardando partida…</span>
+    </div>
 
     <div id="scoreboard" class="scoreboard hidden">
-      <div class="team-col" id="team-order">
-        <div class="team-header order">ORDER (Blue)</div>
-        <div class="players"></div>
-      </div>
-      <div class="mid">
+      <section class="team team-order" aria-label="Time Azul">
+        <header class="team-head">
+          <span class="team-name">ORDER</span>
+          <span class="team-sub">Time Azul</span>
+        </header>
+        <div class="players" id="players-order"></div>
+      </section>
+
+      <div class="center">
         <div class="clock" id="clock">00:00</div>
-        <div class="mode" id="mode"></div>
+        <div class="mode" id="mode">CLÁSSICO</div>
       </div>
-      <div class="team-col" id="team-chaos">
-        <div class="team-header chaos">CHAOS (Red)</div>
-        <div class="players"></div>
-      </div>
+
+      <section class="team team-chaos" aria-label="Time Vermelho">
+        <header class="team-head">
+          <span class="team-name">CHAOS</span>
+          <span class="team-sub">Time Vermelho</span>
+        </header>
+        <div class="players" id="players-chaos"></div>
+      </section>
     </div>
 
     <script src="/app.js"></script>

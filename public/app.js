@@ -1,8 +1,8 @@
-/* Overlay client — pure JS. Prefers the WebSocket, falls back to REST polling. */
+/* Cliente do overlay — JS puro. Prefere o WebSocket, com polling REST como fallback. */
 (function () {
   "use strict";
 
-  // ponytail: hardcoded Data Dragon patch for item/champion icons. Bump on new patch.
+  // ponytail: patch do Data Dragon fixado (ícones de campeão/item). Atualize a cada patch.
   var DDRAGON_VERSION = "15.1.1";
   var CHAMP_IMG = function (name) {
     return (
@@ -23,12 +23,27 @@
     );
   };
 
+  // Rótulos dos modos de jogo em pt-BR (chave = gameMode da API).
+  var MODOS = {
+    CLASSIC: "Clássico",
+    ARAM: "ARAM",
+    URF: "URF",
+    ARURF: "ARURF",
+    ONEFORALL: "Um Por Todos",
+    NEXUSBLITZ: "Nexus Blitz",
+    TUTORIAL: "Tutorial",
+    PRACTICETOOL: "Ferramenta de Treino",
+    CHERRY: "Arena",
+    SWIFTPLAY: "Partida Rápida",
+  };
+
   var statusEl = document.getElementById("status");
+  var statusText = statusEl.querySelector(".status-text");
   var boardEl = document.getElementById("scoreboard");
   var clockEl = document.getElementById("clock");
   var modeEl = document.getElementById("mode");
-  var orderPlayers = document.querySelector("#team-order .players");
-  var chaosPlayers = document.querySelector("#team-chaos .players");
+  var orderEl = document.getElementById("players-order");
+  var chaosEl = document.getElementById("players-chaos");
 
   function fmtTime(seconds) {
     var s = Math.max(0, Math.floor(seconds || 0));
@@ -37,8 +52,20 @@
     return (m < 10 ? "0" : "") + m + ":" + (r < 10 ? "0" : "") + r;
   }
 
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[c];
+    });
+  }
+
   function itemsHtml(items) {
-    // 6 item slots + trinket; keep to first 7, skip empties.
+    // 6 slots de item + berloque; primeiros 7 não-vazios.
     var html = "";
     var count = 0;
     for (var i = 0; i < items.length && count < 7; i++) {
@@ -57,38 +84,53 @@
 
   function playerRow(p) {
     var el = document.createElement("div");
-    el.className =
-      "player " + (p.team === "CHAOS" ? "chaos" : "order") + (p.isDead ? " dead" : "");
-    var goldTxt = p.gold != null ? '<span class="gold">' + p.gold + "g</span>" : "";
+    var cls = "player";
+    if (p.isDead) cls += " dead";
+    if (p.gold != null) cls += " is-local";
+    el.className = cls;
+
+    // barra de ouro apenas para o jogador local (único exposto pela API)
+    var goldHtml =
+      p.gold != null
+        ? '<div class="stat gold"><b>' +
+          p.gold +
+          '</b><span class="k">Ouro</span></div>'
+        : "";
+
     el.innerHTML =
-      '<div class="champ">' +
+      '<div class="portrait">' +
       '<img src="' +
       CHAMP_IMG(p.championName) +
       '" alt="' +
-      p.championName +
-      '" onerror="this.style.opacity=0.2"/>' +
+      escapeHtml(p.championName) +
+      '" onerror="this.style.opacity=0.15"/>' +
       '<span class="level">' +
       p.level +
       "</span>" +
       "</div>" +
       '<div class="info">' +
-      '<div class="name">' +
+      '<div class="line1">' +
+      '<span class="name">' +
       escapeHtml(p.riotId) +
+      "</span>" +
+      '<span class="champ">' +
+      escapeHtml(p.championName) +
+      "</span>" +
       "</div>" +
-      '<div class="substats">' +
-      '<span class="kda"><b>' +
+      '<div class="stats">' +
+      '<div class="stat"><b>' +
       p.kills +
-      "</b>/<b>" +
+      '<span class="sep">/</span>' +
       p.deaths +
-      "</b>/<b>" +
+      '<span class="sep">/</span>' +
       p.assists +
-      "</b></span>" +
-      "<span>CS " +
+      '</b><span class="k">KDA</span></div>' +
+      '<div class="stat"><b>' +
       p.cs +
-      " (" +
+      '</b><span class="k">CS · ' +
       p.csPerMin +
-      "/m)</span>" +
-      goldTxt +
+      "/min</span></div>" +
+      goldHtml +
       "</div>" +
       "</div>" +
       '<div class="items">' +
@@ -97,39 +139,26 @@
     return el;
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, function (c) {
-      return {
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      }[c];
-    });
-  }
-
   function render(data) {
     if (!data || !data.inGame) {
+      statusText.textContent = "Aguardando partida…";
       statusEl.classList.remove("hidden");
-      statusEl.textContent = "Waiting for game…";
       boardEl.classList.add("hidden");
       return;
     }
     statusEl.classList.add("hidden");
     boardEl.classList.remove("hidden");
     clockEl.textContent = fmtTime(data.gameTime);
-    modeEl.textContent = data.gameMode || "";
+    modeEl.textContent = MODOS[data.gameMode] || data.gameMode || "Partida";
 
-    orderPlayers.innerHTML = "";
-    chaosPlayers.innerHTML = "";
+    orderEl.innerHTML = "";
+    chaosEl.innerHTML = "";
     (data.players || []).forEach(function (p) {
-      var row = playerRow(p);
-      (p.team === "CHAOS" ? chaosPlayers : orderPlayers).appendChild(row);
+      (p.team === "CHAOS" ? chaosEl : orderEl).appendChild(playerRow(p));
     });
   }
 
-  // --- transport: WebSocket first, REST polling as fallback ---
+  // --- transporte: WebSocket primeiro, polling REST como fallback ---
   var pollTimer = null;
   function startPolling() {
     if (pollTimer) return;
