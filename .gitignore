@@ -3,3 +3,6 @@ dist
 *.exe
 *.tsbuildinfo
 npm-debug.log
+
+# WSL alternate data streams
+*:Zone.Identifier

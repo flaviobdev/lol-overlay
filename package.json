@@ -11,7 +11,8 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
-    "build:exe": "npm run build && pkg . --targets node18-win-x64 --output lol-overlay.exe"
+    "build:icon": "node scripts/png-to-ico.js",
+    "build:exe": "npm run build:icon && npm run build && pkg . --targets node18-win-x64 --output lol-overlay.exe && node scripts/set-exe-icon.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
@@ -22,9 +23,14 @@
     "@nestjs/websockets": "^10.4.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "systray2": "^2.1.4"
+  },
+  "optionalDependencies": {
+    "node-hide-console-window": "^2.2.0"
   },
   "devDependencies": {
+    "rcedit": "^4.0.1",
     "@nestjs/cli": "^10.4.0",
     "@nestjs/schematics": "^10.1.0",
     "@types/node": "^20.14.0",
@@ -35,9 +41,11 @@
     "scripts": "dist/**/*.js",
     "assets": [
       "public/**/*",
+      "assets/**/*",
       "node_modules/@nestjs/**/*",
       "node_modules/socket.io/**/*",
-      "node_modules/engine.io/**/*"
+      "node_modules/engine.io/**/*",
+      "node_modules/systray2/**/*"
     ],
     "targets": [
       "node18-win-x64"
